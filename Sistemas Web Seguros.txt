@@ -1,0 +1,201 @@
+Sistemas Web Seguros
+Arquitetura Orientada a Serviços (SOA)
+-Serviços fracamente acoplados
+-Com interfaces e protocolos de comunicação para integração entre sistemas heterogêneos
+
+Princípio da separação de preocupações
+-Um problema pode ser resolvido quando decomposto em subproblemas menores
+
+SOAP(XML) X REST(URL)
+-Ambos utilizam HTTP
+-SOAP é um padrão de mensagens mais rígido que o REST
+
+--------------------------------------------------
+SOAP
+-A chamada de web service é feita por requisição de HTTP, enviando envelopes SOAP no body da mensagem
+-Mais antigo
+-Fortemente padronizado - bom para conexão com banco
+-Por meio de "envelopes"/"cartas"
+-Precisamos de:
+
+	1. Java JDK
+	2. IDE Eclipse
+	3. Apache Tomcat (Servidor)
+	4. SoapUI (testes XML)
+
+Estrutura básica SOAP
+
+<definitions name="CalculadoraService">
+  <message/>	//define tipo de entrada e saída
+  <portType/>	//define entrada, saída e ações
+  <binding/>
+  <service name="CalculadoraService"/>
+</definitions>
+
+Então, o envio e resposta do SOAP será um envelope
+
+<soapenv:Envelope xmlns:soap="http://soap/">
+<soapenv:Header/>
+<soapenv:Body>
+      <soap:somar>
+         <numero1>2.0</numero1>
+         <numero2>3.0</numero2>
+      </soap:somar>
+   </soapenv:Body>
+</soapenv:Envelope>
+
+-------------------------------------------------------
+Escrever a estrutura SOAP do 0 seria complexo, mas em Java, contamos com a especificação JAX-WS
+
+
+@WebService
+@SOAPBinding(style = Style.RPC)
+public class Calculadora {      
+
+       @WebMethod(action = "somar")
+       public double somar(
+                    @WebParam(name = "numero1") double numero1,
+                    @WebParam(name = "numero2") double numero2) {
+             return numero1 + numero2;
+       }
+}
+
+Sim, é só isso! Mas vamos entender o significado de cada anotação utilizada:
+
+@WebService: indica que a classe Calculadora implementa um serviço SOAP.
+@SOAPBinding: informa que nosso WSDL utilizará o estilo RPC.
+@WebMethod: indica que a mensagem nomeada somar será implementada pelo método somar.
+@WebParam: descreve os parâmetros da mensagem somar.
+
+--------------------------------------------
+Utilizando biblioteca jaxws-rt
+-Em pom.xml:
+
+<dependencies>
+	<dependency>
+		<groupId>com.sun.xml.ws</groupId>
+		<artifactId>jaxws-rt</artifactId>
+		<version>2.3.5</version>
+	</dependency>
+</dependencies>
+
+---------------------------------------------
+Autenticação em serviços SOAP
+-Problema: qualquer um que souber a URL dos endpoints poderá chamá-los -> Solução: autenticação baseado em usuário e senha
+
+*Não recomendado - Aspectos de segurança ficam transparentes
+@WebMethod(action = "somar")
+public int somar(
+
+                @WebParam(name = "numero1") int numero1,
+                @WebParam(name = "numero2") int numero2,
+                @WebParam(name = "usuario") String usuario,
+                @WebParam(name = "senha") String senha) throws Exception {
+
+    
+        if (usuario.equals("user") && senha.equals("123")){
+                return numero1 + numero2;      
+        }else {
+                throw new Exception("Usuário e senha inválido");
+        }              
+}
+
+
+*Recomendado
+-Passar usuário e senha no header da requisição
+
+--------------------------------------------------
+Tratamento de erros
+
+       if (numero2 == 0) {
+              throw new Exception("Divisão por zero não é permitida");
+       }
+
+No XML, o retorno será uma estrutura Fault
+
+
+--------------------------------------------------
+Requisições HTTP - Carregam payloads
+-POST: gera uma ação
+-GET: recebe informação
+-DELETE
+-PUT
+
+Códigos de status
+-Entre 100 e 102: são retornos informativos e de pouca importância, que provavelmente nunca utilizará.
+-Entre 200 e 299: são códigos para representar sucesso. Esta é uma faixa importante, pois temos várias situações de sucesso, tais como: 200 para um OK; 201 para informar que o recurso foi criado; e 202 para registrar um aceite.
+-Entre 300 e 399: são códigos que representam redirecionamento; por exemplo, o 302 informa que o recurso de destino reside temporariamente em URL diferente.
+-Entre 400 e 499: representam erros da requisição enviada pelo cliente. Por exemplo, uma requisição malformada terá como retorno 400, enquanto uma requisição sem autorização recebe 401 e uma requisição para um recurso que não existe tem como retorno 404.
+-Entre 500 e 599: representam erros do servidor, como um erro interno (500), um erro de função não implementada (501), execução em loop (508) ou falha de armazenamento (507).
+
+
+Cabeçalhos
+-Carregam credenciais, tokens, etc
+
+Payloads/Body
+-Carregam dados dos recursos (POST e PUT)
+-Podem ser texto, imagem, vídeo, áudio, json, xml, form, uploads, etc
+
+Swagger
+-Linguagem de anotação REST em JSON
+
+----------------------------------------------------------
+Controle de acesso RBAC
+-Restringe acesso por meio de atribuição de funções e não de usuários
+-Cada usuário recebe uma ou mais funções
+
+JSON Web Token (JWT)
+-Assinatura digital
+-Padrão que permite transmissão de informações de modo seguro em JSON
+-Utiliza par de chaves pública/privada
+-Logo após o usuário ser autenticado, ele deve receber suas permissões de acesso a partir de um token
+-Assim, é possível garantir a autoria do remetente e a integridade do conteúdo (MAS PODEM SER LIDOS POR QUALQUER PESSOA!) -> NÃO colocar informações secretas no JWT, a menos que esteja criptografado
+
+Estrutura do JWT (separados por .)
+-header: tipo de token (JWT), algoritmo de assinatura
+-payload: informações do usuário (nome, acesso, conta, etc)
+-signature: verifica se a mensagem não foi alterada e a autoria pela chave privada -> payload, algoritmo de criptografia e um segredo (chave privada)
+
+Chave privada
+1. Definir um dado que será segredo (superior a 256 bits)
+2. Armazenar em um banco de dados de forma criptografada
+3. Converter o segredo para o formato Base64
+4. Criação da chave privada por meio de uma biblioteca e o algoritmo de criptografia (Ex: HMAC SHA256)
+5. Criação do header e payload
+
+Declaração de datas
+1. O momento de criação do token
+2. Prazo de validade
+
+Construção do token
+-É uma string que recebe os headers, data e hora de criação e expiração, assunto e a chave privada separado por ponto
+
+Validando o JWT
+-Feito pelo método parserBuilder, que recebe o token e a chave privada, validando se o token foi criado por essa mesma chave
+-Se o token for válido, os dados poderão ser obtidos:
+
+Ex:
+-getSubject()
+-getIssuedAt()
+-getExpiration()
+-Informações do token
+
+Login único - SSO
+-Com um único login, qualquer recurso que aceite o token poderá ter seus recursos liberados conforme perfil do usuário (RBAC), e o usuário não precisará realizar login diversas vezes -> o sistema irá verificar se o usuário possui perfil para acessar o recurso
+-Possibilita autenticação, gestão de identidade e liberação de permissão
+-O token garante que a entidade requisitante gerou o token (após autenticação com login e senha)
+------------------------------------------------------------------
+Filtros Java - servlet filter - @WebFilter
+-Interceptam solicitações/respostas para execução de pré-processamento e pós-processameno antes de enviar ao cliente
+-Útil para:
+
+	1. Log de auditoria
+	2. Autenticação e autorização
+	3. Formatação de dados
+	4. Compressão de dados
+	5. Cookies
+
+
+
+
+
